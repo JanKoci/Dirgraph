@@ -1,0 +1,169 @@
+#! /bin/sh
+
+###################################
+# Projekt 1, IOS 2016/2017
+# Autor: Jan Koci, VUT FIT
+###################################
+#
+
+POSIXLY_CORRECT=yes
+DIR="."
+NFLAG="false"
+IFLAG="false"
+IREG=""
+TYPE_FLAG="false"
+COLUMNS=66 # 79 - 13 = 66
+
+# if the stdout is terminal
+if [ -t 1 ]; then
+	COLUMNS=$(tput cols) 
+	COLUMNS=$((COLUMNS-13))
+fi
+
+# get command line arguments
+while getopts :ni: opt; do
+    case $opt in
+        n)
+            NFLAG="true"
+            ;;
+        i)
+            IFLAG="true"
+            IREG="$OPTARG"
+            ;;
+        :)
+            printf "Param -$OPTARG requires a additional argument!\n" >&2
+            exit 1
+            ;;
+        *)
+			echo "Error !" >&2
+			exit 1
+			;;
+    esac
+done
+shift $((OPTIND-1))
+
+# last parsed argument is the directory to be inspected
+if [ "$#" -ne "0" ]; then
+    DIR="$@"
+fi
+
+#echo "NFLAG = $NFLAG"
+#echo "IFLAG = $IFLAG"
+#echo "IREG = $IREG"
+#echo "DIR = $DIR"
+
+# test if the directory exists
+if [ -d "$DIR" ]; then
+	printf ""
+else
+    printf "$DIR is not a directory\n" >&2
+    exit 1
+fi
+
+
+# prints ascii chars for the file size diagram
+# $1 (first argument) is the number of '#' to print
+printSize()
+{
+	iterator=0
+	count=$1
+
+	if [ $1 -ne 0 ]; then
+		# print normalized count
+		if [ $NFLAG = "true" ]; then
+			# TYPE_FLAG = "true" means we print in the file type diagram where the COLUMNS variable is different
+			if [ $TYPE_FLAG = "true" ]; then
+				COLUMNS=$((COLUMNS-35))
+			fi
+
+			count=$((count * 100 / FILECOUNT))
+		fi
+
+		while [ $iterator -lt $count ]
+		do
+			printf "#"
+			iterator=$((iterator+1))
+		done
+	fi
+	printf "\n"
+}
+
+# calculate number of directories and all files recursively
+FILECOUNT="$(find $DIR -type f  \( ! -wholename "${IREG}" \) | wc -l)"
+DIRCOUNT="$(find $DIR -type d  \( ! -wholename "${IREG}" \) | wc -l)"
+
+# tests whether IREG contains the root directory
+if [ $IFLAG = "true" ]; then
+
+	dir_string=$(pwd)
+	slash=\/
+
+	# contains slash
+	if [ "${IREG#*$slash}" != "$IREG" ];
+		then
+		printf "Argument -i must not contain name of the root directory. \n" >&2
+		exit 1
+	fi
+	# IREG is the working directory
+	if [ "$dir_string" = "$IREG" ]; then
+		printf "Argument -i must not contain name of the root directory. \n" >&2
+		exit 1
+	fi
+	# IREG is the working directory 
+	if [ "$IREG" = "$DIR" ]; then
+		printf "Argument -i must not contain name of the root directory. \n" >&2
+		exit 1
+	fi
+fi
+
+# FILESIZE histogram
+
+printf "Root directory: %s\n" $DIR
+printf "Directories: %s\n" ${DIRCOUNT}
+printf "All files: %s\n" ${FILECOUNT}
+
+printf "File size histogram:\n"
+printf "  <100 B  : "; printSize $(find $DIR -type f -size -100c \( ! -wholename "${IREG}" \) | wc -l)
+printf "  <1 KiB  : "; printSize $(find $DIR -type f -size +99c -a -size -1024c \( ! -wholename "${IREG}" \)| wc -l)
+printf "  <10 KiB : "; printSize $(find $DIR -type f -size +1023c -a -size -10240c \( ! -wholename "${IREG}" \) | wc -l)
+printf "  <100 KiB: "; printSize $(find $DIR -type f -size +10239c -a -size -102400c \( ! -wholename "${IREG}" \) | wc -l)
+printf "  <1 MiB  : "; printSize $(find $DIR -type f -size +102399c -a -size -1048576c \( ! -wholename "${IREG}" \)| wc -l)
+printf "  <10 MiB : "; printSize $(find $DIR -type f -size +1048575c -a -size -10485760c \( ! -wholename "${IREG}" \)| wc -l)
+printf "  <100 MiB: "; printSize $(find $DIR -type f -size +10485759c -a -size -104857600c \( ! -wholename "${IREG}" \)| wc -l)
+printf "  <1 GiB  : "; printSize $(find $DIR -type f -size +104857599c -a -size -1073741824c \( ! -wholename "${IREG}" \)| wc -l)
+printf "  >=1 GiB : "; printSize $(find $DIR -type f -size +1073741823c \( ! -wholename "${IREG}" \)| wc -l)
+
+
+#FILETYPE histogram:
+
+TYPE_FLAG="true"
+# if the directory is empty
+if [ "$FILECOUNT" -eq 0 ]; then
+	VAR=0
+	VAR_COUNT=0
+else
+	VAR="$(find $DIR -type f -print0 \( ! -wholename "${IREG}" \) | xargs -0 file -b | sort | cut -c -41 | uniq -c | sort -n -r | head -n 10 | sed -r 's/ +/;/2' )"
+	VAR_COUNT="$(echo "$VAR" | wc -l)"
+fi
+ITERATOR=1
+
+printf "File type histogram:\n"
+# iterates over found types
+while [ $ITERATOR -le $VAR_COUNT ]
+do
+	# notice that we use ';' as the delimiter of number of occurance and name of the type
+	name=$(echo "$VAR" | head -n "$ITERATOR"  | tail -n 1 | cut -f2- -d';')
+	# if name of the type is longer than 40 ( wc -c = number of bytes + 1, therefore we used 42)
+	if [ $(echo "$name" | wc -c) -ge 42 ]; then
+		# now we can cut it to 40 characters
+		name=$(echo "$name" | cut -c -40)
+		printf "  %-40s...: " "$name"; printSize "$(echo "$VAR" | head -n "$ITERATOR" | tail -n 1 | cut -f1 -d';')"
+	else
+		name=$(echo "$name" | cut -c -40)
+		printf "  %-43s: " "$name"; printSize "$(echo "$VAR" | head -n "$ITERATOR" | tail -n 1 | cut -f1 -d';')"
+	fi
+	ITERATOR=$((ITERATOR + 1))
+done
+exit 0
+
+	
