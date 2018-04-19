@@ -1,4 +1,13 @@
-# IOS-proj1
-Shell script for searching directories.
-Is not working properly because I didn't have enough time :) 
+# Dirgraph
+## Directory content statistics
+IOS - project 1 \
 
+Shell script for printing directory content statistics. \
+
+### Usage: 
+
+    dirgraph [-i FILE_ERE] [-n] [DIR]
+    
+    -i   ignore files that suit the extended regular expression FILE_ERE 
+    DIR  specifies directory to inspect (when no DIR passed program will inspect current directory)
+    -n   normalized output
