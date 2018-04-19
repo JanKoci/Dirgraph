@@ -1,8 +1,8 @@
 # Dirgraph
 ## Directory content statistics
-IOS - project 1 \
+IOS - project 1 
 
-Shell script for printing directory content statistics. \
+Shell script for printing directory content statistics. 
 
 ### Usage: 
 
